@@ -9,8 +9,9 @@ import random
 import argparse
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from datasets import load_dataset
 
-from dataset import VimeoDataset
+from dataset import VimeoHFDataset, VimeoDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -58,14 +59,23 @@ def train(model, args):
             with open(json_path, 'r') as f:
                 results_log = json.load(f)
 
-    dataset = VimeoDataset('train')
+    # NẠP DATASET TRỰC TIẾP TỪ HUGGINGFACE HOẶC LOCAL
+    if os.path.exists('vimeo_triplet/sequences'):
+        print("[*] Nạp dataset từ thư mục vimeo_triplet cục bộ...")
+        dataset = VimeoDataset('train')
+        dataset_val = VimeoDataset('validation')
+    else:
+        print(f"[*] Nạp dataset trực tiếp từ Hugging Face ({args.hf_dataset}) vào RAM...")
+        hf_ds = load_dataset(args.hf_dataset)
+        dataset = VimeoHFDataset(hf_ds, 'train')
+        dataset_val = VimeoHFDataset(hf_ds, 'validation')
+
     sampler = DistributedSampler(dataset) if args.world_size > 1 else None
     train_data = DataLoader(dataset, batch_size=args.batch_size, num_workers=4, pin_memory=True, drop_last=True, sampler=sampler, shuffle=(sampler is None))
     args.step_per_epoch = train_data.__len__()
-    dataset_val = VimeoDataset('validation')
     val_data = DataLoader(dataset_val, batch_size=16, pin_memory=True, num_workers=4)
 
-    print('Bắt đầu huấn luyện...')
+    print(f"Bắt đầu huấn luyện {args.epoch} Epochs | Số step/epoch: {args.step_per_epoch}...")
     for epoch in range(start_epoch, args.epoch):
         if sampler is not None:
             sampler.set_epoch(epoch)
@@ -84,7 +94,7 @@ def train(model, args):
             pred, info = model.update(imgs, gt, learning_rate, training=True)
             loss_epoch.append(info['loss_l1'].item())
             
-            if args.local_rank == 0 and step % 100 == 0:
+            if args.local_rank == 0 and (step % 20 == 0 or i == args.step_per_epoch - 1):
                 print('Epoch: {} {}/{} | LR: {:.6f} | Loss: {:.4e}'.format(epoch, i, args.step_per_epoch, learning_rate, info['loss_l1']))
             step += 1
 
@@ -133,6 +143,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_type', type=str, choices=['original', 'modify'], default='original')
     parser.add_argument('--act', type=str, default='prelu')
     parser.add_argument('--attn', type=str, default='none')
+    parser.add_argument('--hf_dataset', type=str, default='bijinc/vimeo-90k-mini', help='Tên dataset trên Hugging Face')
     parser.add_argument('--save_dir', type=str, default='trained_model/baseline_prelu')
     parser.add_argument('--resume', type=str, default='')
     args = parser.parse_args()

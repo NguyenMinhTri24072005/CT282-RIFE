@@ -1,13 +1,76 @@
 import os
 import cv2
-import ast
 import torch
 import numpy as np
 import random
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
+from datasets import load_dataset
 
 cv2.setNumThreads(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class VimeoHFDataset(Dataset):
+    """Dataset đọc trực tiếp từ HuggingFace dataset object trên RAM.
+    Không cần kết xuất file ra đĩa, tốc độ nạp dữ liệu siêu nhanh (2 giây).
+    """
+    def __init__(self, hf_dataset, dataset_name='train', crop_size=224):
+        self.dataset_name = dataset_name
+        self.crop_size = crop_size
+
+        if dataset_name == 'train':
+            cnt = int(len(hf_dataset['train']) * 0.95)
+            self.data = hf_dataset['train'].select(range(cnt))
+        elif dataset_name == 'validation':
+            cnt = int(len(hf_dataset['train']) * 0.95)
+            self.data = hf_dataset['train'].select(range(cnt, len(hf_dataset['train'])))
+        else: # test
+            self.data = hf_dataset['test']
+
+    def __len__(self):
+        return len(self.data)
+
+    def crop(self, img0, gt, img1, h, w):
+        ih, iw, _ = img0.shape
+        x = np.random.randint(0, ih - h + 1)
+        y = np.random.randint(0, iw - w + 1)
+        return img0[x:x+h, y:y+w, :], gt[x:x+h, y:y+w, :], img1[x:x+h, y:y+w, :]
+
+    def __getitem__(self, index):
+        item = self.data[index]
+
+        # PIL Image -> numpy BGR (tương thích OpenCV)
+        img0 = np.array(item['im1'])[:, :, ::-1].copy()
+        gt   = np.array(item['im2'])[:, :, ::-1].copy()
+        img1 = np.array(item['im3'])[:, :, ::-1].copy()
+        timestep = 0.5
+
+        if self.dataset_name == 'train':
+            img0, gt, img1 = self.crop(img0, gt, img1, self.crop_size, self.crop_size)
+            if random.uniform(0, 1) < 0.5:
+                img0 = img0[:, :, ::-1]
+                img1 = img1[:, :, ::-1]
+                gt = gt[:, :, ::-1]
+            if random.uniform(0, 1) < 0.5:
+                img0 = img0[::-1]
+                img1 = img1[::-1]
+                gt = gt[::-1]
+            if random.uniform(0, 1) < 0.5:
+                img0 = img0[:, ::-1]
+                img1 = img1[:, ::-1]
+                gt = gt[:, ::-1]
+            if random.uniform(0, 1) < 0.5:
+                tmp = img1
+                img1 = img0
+                img0 = tmp
+                timestep = 1 - timestep
+
+        img0 = torch.from_numpy(img0.copy()).permute(2, 0, 1)
+        img1 = torch.from_numpy(img1.copy()).permute(2, 0, 1)
+        gt = torch.from_numpy(gt.copy()).permute(2, 0, 1)
+        timestep = torch.tensor(timestep).reshape(1, 1, 1)
+        return torch.cat((img0, img1, gt), 0), timestep
+
+# Hỗ trợ cả cách nạp truyền thống từ folder nếu có
 class VimeoDataset(Dataset):
     def __init__(self, dataset_name, batch_size=32):
         self.batch_size = batch_size
@@ -40,33 +103,17 @@ class VimeoDataset(Dataset):
         ih, iw, _ = img0.shape
         x = np.random.randint(0, ih - h + 1)
         y = np.random.randint(0, iw - w + 1)
-        img0 = img0[x:x+h, y:y+w, :]
-        img1 = img1[x:x+h, y:y+w, :]
-        gt = gt[x:x+h, y:y+w, :]
-        return img0, gt, img1
+        return img0[x:x+h, y:y+w, :], gt[x:x+h, y:y+w, :], img1[x:x+h, y:y+w, :]
 
     def getimg(self, index):
         imgpath = os.path.join(self.image_root, self.meta_data[index])
         imgpaths = [imgpath + '/im1.png', imgpath + '/im2.png', imgpath + '/im3.png']
-
-        # Load images
         img0 = cv2.imread(imgpaths[0])
         gt = cv2.imread(imgpaths[1])
         img1 = cv2.imread(imgpaths[2])
         timestep = 0.5
         return img0, gt, img1, timestep
-    
-        # RIFEm with Vimeo-Septuplet
-        # imgpaths = [imgpath + '/im1.png', imgpath + '/im2.png', imgpath + '/im3.png', imgpath + '/im4.png', imgpath + '/im5.png', imgpath + '/im6.png', imgpath + '/im7.png']
-        # ind = [0, 1, 2, 3, 4, 5, 6]
-        # random.shuffle(ind)
-        # ind = ind[:3]
-        # ind.sort()
-        # img0 = cv2.imread(imgpaths[ind[0]])
-        # gt = cv2.imread(imgpaths[ind[1]])
-        # img1 = cv2.imread(imgpaths[ind[2]])        
-        # timestep = (ind[1] - ind[0]) * 1.0 / (ind[2] - ind[0] + 1e-6)
-            
+
     def __getitem__(self, index):        
         img0, gt, img1, timestep = self.getimg(index)
         if self.dataset_name == 'train':
@@ -88,20 +135,6 @@ class VimeoDataset(Dataset):
                 img1 = img0
                 img0 = tmp
                 timestep = 1 - timestep
-            # random rotation
-            p = random.uniform(0, 1)
-            if p < 0.25:
-                img0 = cv2.rotate(img0, cv2.ROTATE_90_CLOCKWISE)
-                gt = cv2.rotate(gt, cv2.ROTATE_90_CLOCKWISE)
-                img1 = cv2.rotate(img1, cv2.ROTATE_90_CLOCKWISE)
-            elif p < 0.5:
-                img0 = cv2.rotate(img0, cv2.ROTATE_180)
-                gt = cv2.rotate(gt, cv2.ROTATE_180)
-                img1 = cv2.rotate(img1, cv2.ROTATE_180)
-            elif p < 0.75:
-                img0 = cv2.rotate(img0, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                gt = cv2.rotate(gt, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                img1 = cv2.rotate(img1, cv2.ROTATE_90_COUNTERCLOCKWISE)
         img0 = torch.from_numpy(img0.copy()).permute(2, 0, 1)
         img1 = torch.from_numpy(img1.copy()).permute(2, 0, 1)
         gt = torch.from_numpy(gt.copy()).permute(2, 0, 1)
