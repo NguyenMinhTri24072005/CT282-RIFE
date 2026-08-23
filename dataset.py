@@ -11,7 +11,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class VimeoHFDataset(Dataset):
     """Dataset đọc trực tiếp từ HuggingFace dataset object trên RAM.
-    Không cần kết xuất file ra đĩa, tốc độ nạp dữ liệu siêu nhanh (2 giây).
+    Có cơ chế Fast Pre-decoding (giải mã sẵn ảnh) để loại bỏ hoàn toàn độ trễ CPU.
     """
     def __init__(self, hf_dataset, dataset_name='train', crop_size=224):
         self.dataset_name = dataset_name
@@ -38,10 +38,10 @@ class VimeoHFDataset(Dataset):
     def __getitem__(self, index):
         item = self.data[index]
 
-        # PIL Image -> numpy BGR (tương thích OpenCV)
-        img0 = np.array(item['im1'])[:, :, ::-1].copy()
-        gt   = np.array(item['im2'])[:, :, ::-1].copy()
-        img1 = np.array(item['im3'])[:, :, ::-1].copy()
+        # Chuyển đổi nhanh PIL -> numpy BGR
+        img0 = np.array(item['im1'])[:, :, ::-1]
+        gt   = np.array(item['im2'])[:, :, ::-1]
+        img1 = np.array(item['im3'])[:, :, ::-1]
         timestep = 0.5
 
         if self.dataset_name == 'train':
@@ -70,9 +70,8 @@ class VimeoHFDataset(Dataset):
         timestep = torch.tensor(timestep).reshape(1, 1, 1)
         return torch.cat((img0, img1, gt), 0), timestep
 
-# Hỗ trợ cả cách nạp truyền thống từ folder nếu có
 class VimeoDataset(Dataset):
-    def __init__(self, dataset_name, batch_size=32):
+    def __init__(self, dataset_name, batch_size=16):
         self.batch_size = batch_size
         self.dataset_name = dataset_name        
         self.h = 256

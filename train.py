@@ -69,14 +69,27 @@ def train(model, args, device):
         dataset_val = VimeoHFDataset(hf_ds, 'validation')
 
     sampler = DistributedSampler(dataset) if args.is_distributed else None
-    train_data = DataLoader(dataset, batch_size=args.batch_size, num_workers=4, pin_memory=True, drop_last=True, sampler=sampler, shuffle=(sampler is None))
+    
+    # TỐI ƯU HÓA DATALOADER VỚI PERSISTENT WORKERS VÀ PREFETCH
+    train_data = DataLoader(
+        dataset, 
+        batch_size=args.batch_size, 
+        num_workers=4, 
+        pin_memory=True, 
+        drop_last=True, 
+        sampler=sampler, 
+        shuffle=(sampler is None),
+        persistent_workers=True,
+        prefetch_factor=2
+    )
     args.step_per_epoch = train_data.__len__()
-    val_data = DataLoader(dataset_val, batch_size=16, pin_memory=True, num_workers=4)
+    val_data = DataLoader(dataset_val, batch_size=32, pin_memory=True, num_workers=2)
 
     if args.local_rank in [-1, 0]:
-        print(f"🚀 Bắt đầu huấn luyện {args.epoch} Epochs | Số step/epoch: {args.step_per_epoch} | Multi-GPU: {args.is_distributed}...")
+        print(f"🚀 Bắt đầu huấn luyện {args.epoch} Epochs | Số step/epoch: {args.step_per_epoch} | Multi-GPU: {args.is_distributed} | Batch: {args.batch_size}...")
 
     for epoch in range(start_epoch, args.epoch):
+        t_epoch_start = time.time()
         if sampler is not None:
             sampler.set_epoch(epoch)
         
@@ -98,9 +111,20 @@ def train(model, args, device):
                 print('Epoch: {} {}/{} | LR: {:.6f} | Loss: {:.4e}'.format(epoch, i, args.step_per_epoch, learning_rate, info['loss_l1']))
             step += 1
 
+        epoch_duration = time.time() - t_epoch_start
+
         if args.local_rank in [-1, 0]:
-            val_psnr = evaluate(model, val_data, device)
-            print(f"=== Đánh giá Epoch {epoch}: PSNR = {val_psnr:.2f} dB ===")
+            # ĐÁNH GIÁ ĐỊNH KỲ THEO EVAL_INTERVAL HOẶC EPOCH CUỐI CÙNG
+            should_eval = ((epoch + 1) % args.eval_interval == 0) or (epoch == args.epoch - 1)
+            val_psnr = best_psnr
+            
+            if should_eval:
+                t_eval_start = time.time()
+                val_psnr = evaluate(model, val_data, device)
+                eval_duration = time.time() - t_eval_start
+                print(f"=== Đánh giá Epoch {epoch}: PSNR = {val_psnr:.2f} dB (Mất {eval_duration:.1f}s) | Thời gian train: {epoch_duration:.1f}s ===")
+            else:
+                print(f"=== Hoàn thành Epoch {epoch} trong {epoch_duration:.1f}s ===")
             
             results_log.append({
                 "epoch": epoch,
@@ -119,7 +143,7 @@ def train(model, args, device):
             }
             torch.save(state_to_save, resume_path)
             
-            if val_psnr > best_psnr:
+            if val_psnr > best_psnr and should_eval:
                 best_psnr = val_psnr
                 best_model_path = os.path.join(args.save_dir, "best_flownet.pkl")
                 torch.save(model.flownet.module.state_dict() if hasattr(model.flownet, 'module') else model.flownet.state_dict(), best_model_path)
@@ -138,6 +162,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=16, type=int)
+    parser.add_argument('--eval_interval', default=2, type=int, help='Khoảng cách epoch để chạy validation')
     parser.add_argument('--local_rank', default=-1, type=int, help='local rank cho DDP, -1 là Single GPU')
     parser.add_argument('--model_type', type=str, choices=['original', 'modify'], default='original')
     parser.add_argument('--act', type=str, default='prelu')
