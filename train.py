@@ -13,6 +13,17 @@ from datasets import load_dataset
 
 from dataset import VimeoHFDataset, VimeoDataset
 
+def format_time(seconds):
+    """Format thời gian thành chuỗi dễ đọc (Xh Ym Zs hoặc Xm Ys)."""
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    if h > 0:
+        return f"{h}h {m}m {s}s"
+    elif m > 0:
+        return f"{m}m {s}s"
+    else:
+        return f"{seconds:.1f}s"
+
 def get_learning_rate(step, args):
     if step < 2000:
         mul = step / 2000.
@@ -40,6 +51,7 @@ def train(model, args, device):
     start_epoch = 0
     best_psnr = 0.0
     results_log = []
+    total_start_time = time.time()
 
     if args.resume and os.path.exists(args.resume):
         print(f"[*] Phục hồi từ Checkpoint: {args.resume}")
@@ -112,6 +124,11 @@ def train(model, args, device):
             step += 1
 
         epoch_duration = time.time() - t_epoch_start
+        total_elapsed = time.time() - total_start_time
+        completed_epochs = epoch + 1 - start_epoch
+        avg_epoch_time = total_elapsed / completed_epochs
+        remaining_epochs = args.epoch - (epoch + 1)
+        eta_seconds = remaining_epochs * avg_epoch_time
 
         if args.local_rank in [-1, 0]:
             # ĐÁNH GIÁ ĐỊNH KỲ THEO EVAL_INTERVAL HOẶC EPOCH CUỐI CÙNG
@@ -122,14 +139,15 @@ def train(model, args, device):
                 t_eval_start = time.time()
                 val_psnr = evaluate(model, val_data, device)
                 eval_duration = time.time() - t_eval_start
-                print(f"=== Đánh giá Epoch {epoch}: PSNR = {val_psnr:.2f} dB (Mất {eval_duration:.1f}s) | Thời gian train: {epoch_duration:.1f}s ===")
+                print(f"=== [Epoch {epoch}] PSNR = {val_psnr:.2f} dB (Eval: {eval_duration:.1f}s) | Train: {format_time(epoch_duration)} | Đã chạy: {format_time(total_elapsed)} | Còn lại: ~{format_time(eta_seconds)} ===")
             else:
-                print(f"=== Hoàn thành Epoch {epoch} trong {epoch_duration:.1f}s ===")
+                print(f"=== [Epoch {epoch}] Train: {format_time(epoch_duration)} | Đã chạy: {format_time(total_elapsed)} | Còn lại: ~{format_time(eta_seconds)} ===")
             
             results_log.append({
                 "epoch": epoch,
                 "train_loss": np.mean(loss_epoch),
-                "val_psnr": float(val_psnr)
+                "val_psnr": float(val_psnr),
+                "epoch_time_seconds": epoch_duration
             })
             with open(os.path.join(args.save_dir, 'experiment_results.json'), 'w') as f:
                 json.dump(results_log, f, indent=4)
@@ -153,10 +171,18 @@ def train(model, args, device):
             dist.barrier()
 
     if args.local_rank in [-1, 0]:
+        total_training_time = time.time() - total_start_time
+        print("\n" + "=" * 65)
+        print(f"🎉 HOÀN THÀNH HUẤN LUYỆN TOÀN BỘ {args.epoch} EPOCHS!")
+        print(f"⏱️  TỔNG THỜI GIAN HUẤN LUYỆN : {format_time(total_training_time)} ({total_training_time:.1f} giây)")
+        print(f"⚡ TỐC ĐỘ TRUNG BÌNH        : {total_training_time / (args.epoch - start_epoch):.1f}s / Epoch")
+        print(f"🏆 BEST PSNR ĐẠT ĐƯỢC       : {best_psnr:.2f} dB")
+        print("=" * 65 + "\n")
+
         resume_path = os.path.join(args.save_dir, "latest_resume_state.pth")
         if os.path.exists(resume_path):
             os.remove(resume_path)
-            print("🧹 Hoàn tất huấn luyện. Đã xóa phao cứu sinh (latest_resume_state.pth).")
+            print("🧹 Đã xóa phao cứu sinh (latest_resume_state.pth).")
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
