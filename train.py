@@ -13,8 +13,6 @@ from datasets import load_dataset
 
 from dataset import VimeoHFDataset, VimeoDataset
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 def get_learning_rate(step, args):
     if step < 2000:
         mul = step / 2000.
@@ -23,7 +21,7 @@ def get_learning_rate(step, args):
         mul = np.cos((step - 2000) / (args.epoch * args.step_per_epoch - 2000.) * math.pi) * 0.5 + 0.5
         return (3e-4 - 3e-6) * mul + 3e-6
 
-def evaluate(model, val_data):
+def evaluate(model, val_data, device):
     psnr_list = []
     for i, data in enumerate(val_data):
         data_gpu, timestep = data
@@ -37,7 +35,7 @@ def evaluate(model, val_data):
             psnr_list.append(psnr)
     return np.array(psnr_list).mean()
 
-def train(model, args):
+def train(model, args, device):
     step = 0
     start_epoch = 0
     best_psnr = 0.0
@@ -70,12 +68,14 @@ def train(model, args):
         dataset = VimeoHFDataset(hf_ds, 'train')
         dataset_val = VimeoHFDataset(hf_ds, 'validation')
 
-    sampler = DistributedSampler(dataset) if args.world_size > 1 else None
+    sampler = DistributedSampler(dataset) if args.is_distributed else None
     train_data = DataLoader(dataset, batch_size=args.batch_size, num_workers=4, pin_memory=True, drop_last=True, sampler=sampler, shuffle=(sampler is None))
     args.step_per_epoch = train_data.__len__()
     val_data = DataLoader(dataset_val, batch_size=16, pin_memory=True, num_workers=4)
 
-    print(f"Bắt đầu huấn luyện {args.epoch} Epochs | Số step/epoch: {args.step_per_epoch}...")
+    if args.local_rank in [-1, 0]:
+        print(f"🚀 Bắt đầu huấn luyện {args.epoch} Epochs | Số step/epoch: {args.step_per_epoch} | Multi-GPU: {args.is_distributed}...")
+
     for epoch in range(start_epoch, args.epoch):
         if sampler is not None:
             sampler.set_epoch(epoch)
@@ -94,12 +94,12 @@ def train(model, args):
             pred, info = model.update(imgs, gt, learning_rate, training=True)
             loss_epoch.append(info['loss_l1'].item())
             
-            if args.local_rank == 0 and (step % 20 == 0 or i == args.step_per_epoch - 1):
+            if args.local_rank in [-1, 0] and (step % 20 == 0 or i == args.step_per_epoch - 1):
                 print('Epoch: {} {}/{} | LR: {:.6f} | Loss: {:.4e}'.format(epoch, i, args.step_per_epoch, learning_rate, info['loss_l1']))
             step += 1
 
-        if args.local_rank == 0:
-            val_psnr = evaluate(model, val_data)
+        if args.local_rank in [-1, 0]:
+            val_psnr = evaluate(model, val_data, device)
             print(f"=== Đánh giá Epoch {epoch}: PSNR = {val_psnr:.2f} dB ===")
             
             results_log.append({
@@ -125,10 +125,10 @@ def train(model, args):
                 torch.save(model.flownet.module.state_dict() if hasattr(model.flownet, 'module') else model.flownet.state_dict(), best_model_path)
                 print(f"🌟 Đã phá kỷ lục! Lưu mô hình tốt nhất vào {best_model_path}")
                 
-        if args.world_size > 1:
+        if args.is_distributed:
             dist.barrier()
 
-    if args.local_rank == 0:
+    if args.local_rank in [-1, 0]:
         resume_path = os.path.join(args.save_dir, "latest_resume_state.pth")
         if os.path.exists(resume_path):
             os.remove(resume_path)
@@ -138,8 +138,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=16, type=int)
-    parser.add_argument('--local_rank', default=0, type=int)
-    parser.add_argument('--world_size', default=1, type=int)
+    parser.add_argument('--local_rank', default=-1, type=int, help='local rank cho DDP, -1 là Single GPU')
     parser.add_argument('--model_type', type=str, choices=['original', 'modify'], default='original')
     parser.add_argument('--act', type=str, default='prelu')
     parser.add_argument('--attn', type=str, default='none')
@@ -150,10 +149,20 @@ if __name__ == "__main__":
 
     os.makedirs(args.save_dir, exist_ok=True)
 
-    if args.world_size > 1:
-        torch.distributed.init_process_group(backend="nccl", world_size=args.world_size)
+    # TỰ ĐỘNG NHẬN DIỆN SINGLE GPU HOẶC MULTI-GPU (DDP)
+    env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
+    if env_local_rank != -1:
+        args.local_rank = env_local_rank
+
+    args.is_distributed = (args.local_rank != -1)
+
+    if args.is_distributed:
         torch.cuda.set_device(args.local_rank)
-        
+        dist.init_process_group(backend="nccl")
+        device = torch.device(f"cuda:{args.local_rank}")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     seed = 1234
     random.seed(seed)
     np.random.seed(seed)
@@ -168,4 +177,4 @@ if __name__ == "__main__":
         from model.RIFE import Model
         model = Model(args.local_rank, act_name=args.act, attn_name=args.attn)
         
-    train(model, args)
+    train(model, args, device)
