@@ -19,6 +19,8 @@ class Model:
         self.device()
         self.optimG = AdamW(self.flownet.parameters(), lr=1e-6, weight_decay=1e-3)
         self.lap = LapLoss()
+        # Khởi tạo GradScaler cho Automatic Mixed Precision (AMP FP16)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
         if local_rank != -1:
             self.flownet = DDP(self.flownet, device_ids=[local_rank], output_device=local_rank)
 
@@ -34,7 +36,7 @@ class Model:
     def load_model(self, path, rank=0):
         def convert(param):
             return {
-            k.replace("module.", ""): v
+                k.replace("module.", ""): v
                 for k, v in param.items()
             }
             
@@ -51,11 +53,13 @@ class Model:
         for i in range(3):
             scale_list[i] = scale_list[i] * 1.0 / scale
         imgs = torch.cat((img0, img1), 1)
-        flow, mask, merged, flow_teacher, merged_teacher, loss_distill = self.flownet(imgs, scale_list, timestep=timestep)
+        with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+            flow, mask, merged, flow_teacher, merged_teacher, loss_distill = self.flownet(imgs, scale_list, timestep=timestep)
         if TTA == False:
             return merged[2]
         else:
-            flow2, mask2, merged2, flow_teacher2, merged_teacher2, loss_distill2 = self.flownet(imgs.flip(2).flip(3), scale_list, timestep=timestep)
+            with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                flow2, mask2, merged2, flow_teacher2, merged_teacher2, loss_distill2 = self.flownet(imgs.flip(2).flip(3), scale_list, timestep=timestep)
             return (merged[2] + merged2[2].flip(2).flip(3)) / 2
     
     def update(self, imgs, gt, learning_rate=0, mul=1, training=True, flow_gt=None):
@@ -67,17 +71,25 @@ class Model:
             self.train()
         else:
             self.eval()
-        flow, mask, merged, flow_teacher, merged_teacher, loss_distill = self.flownet(torch.cat((imgs, gt), 1), scale=[4, 2, 1])
-        loss_l1 = (self.lap(merged[2], gt)).mean()
-        loss_tea = (self.lap(merged_teacher, gt)).mean()
+
+        # 1. Forward Pass với AMP FP16 tự động kích hoạt Tensor Cores
+        with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+            flow, mask, merged, flow_teacher, merged_teacher, loss_distill = self.flownet(torch.cat((imgs, gt), 1), scale=[4, 2, 1])
+            loss_l1 = (self.lap(merged[2], gt)).mean()
+            loss_tea = (self.lap(merged_teacher, gt)).mean()
+            loss_G = loss_l1 + loss_tea + loss_distill * 0.01
+
+        # 2. Backward Pass an toàn với GradScaler
         if training:
             self.optimG.zero_grad()
-            loss_G = loss_l1 + loss_tea + loss_distill * 0.01 # when training RIFEm, the weight of loss_distill should be 0.005 or 0.002
-            loss_G.backward()
-            torch.nn.utils.clip_grad_norm_(self.flownet.parameters(), max_norm=1.0)  # <-- THÊM DÒNG NÀY
-            self.optimG.step()
+            self.scaler.scale(loss_G).backward()
+            self.scaler.unscale_(self.optimG)
+            torch.nn.utils.clip_grad_norm_(self.flownet.parameters(), max_norm=1.0)
+            self.scaler.step(self.optimG)
+            self.scaler.update()
         else:
             flow_teacher = flow[2]
+
         return merged[2], {
             'merged_tea': merged_teacher,
             'mask': mask,
@@ -87,4 +99,4 @@ class Model:
             'loss_l1': loss_l1,
             'loss_tea': loss_tea,
             'loss_distill': loss_distill,
-            }
+        }
