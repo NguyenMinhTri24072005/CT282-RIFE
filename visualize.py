@@ -293,34 +293,36 @@ def plot_training_loss(models_dir='trained_model', save_path='demo/training_loss
 
     # 1. BIỂU ĐỒ LOSS TOÀN CẢNH (LINEAR SCALE)
     for name, loss_list in losses.items():
+        epochs_x = range(1, len(loss_list) + 1)
         if "baseline_prelu" in name.lower():
-            axes[0].plot(loss_list, label=f"★ {name} (Mốc gốc)", color='black', linestyle='--', linewidth=2.5)
+            axes[0].plot(epochs_x, loss_list, label=f"★ {name} (Mốc gốc)", color='black', linestyle='--', linewidth=2.5)
         elif "smooth_prelu" in name.lower():
-            axes[0].plot(loss_list, label=f"🍀 {name}", color='#2E7D32', linewidth=2.2)
+            axes[0].plot(epochs_x, loss_list, label=f"🍀 {name}", color='#2E7D32', linewidth=2.2)
         elif "eca" in name.lower():
-            axes[0].plot(loss_list, label=f"✨ {name}", linewidth=1.8)
+            axes[0].plot(epochs_x, loss_list, label=f"✨ {name}", linewidth=1.8)
         else:
-            axes[0].plot(loss_list, label=name, linewidth=1.5, alpha=0.85)
+            axes[0].plot(epochs_x, loss_list, label=name, linewidth=1.5, alpha=0.85)
 
     axes[0].set_title("1. Đường Cong Giảm Training Loss (Linear Scale)", fontsize=13, fontweight='bold')
-    axes[0].set_xlabel("Epoch", fontsize=11)
+    axes[0].set_xlabel("Epoch (1 - 40)", fontsize=11)
     axes[0].set_ylabel("Training Loss (L1 + Distill)", fontsize=11)
     axes[0].grid(True, linestyle=':', alpha=0.6)
     axes[0].legend(loc='upper right', fontsize=8.5, framealpha=0.9)
 
     # 2. BIỂU ĐỒ LOSS HỘI TỤ SÂU (LOG SCALE)
     for name, loss_list in losses.items():
+        epochs_x = range(1, len(loss_list) + 1)
         if "baseline_prelu" in name.lower():
-            axes[1].semilogy(loss_list, label=f"★ {name} (Mốc gốc)", color='black', linestyle='--', linewidth=2.5)
+            axes[1].semilogy(epochs_x, loss_list, label=f"★ {name} (Mốc gốc)", color='black', linestyle='--', linewidth=2.5)
         elif "smooth_prelu" in name.lower():
-            axes[1].semilogy(loss_list, label=f"🍀 {name}", color='#2E7D32', linewidth=2.2)
+            axes[1].semilogy(epochs_x, loss_list, label=f"🍀 {name}", color='#2E7D32', linewidth=2.2)
         elif "eca" in name.lower():
-            axes[1].semilogy(loss_list, label=f"✨ {name}", linewidth=1.8)
+            axes[1].semilogy(epochs_x, loss_list, label=f"✨ {name}", linewidth=1.8)
         else:
-            axes[1].semilogy(loss_list, label=name, linewidth=1.5, alpha=0.85)
+            axes[1].semilogy(epochs_x, loss_list, label=name, linewidth=1.5, alpha=0.85)
 
     axes[1].set_title("2. Độ Ổn Định & Tốc Độ Hội Tụ (Log Scale - Phân Tích Dao Động)", fontsize=13, fontweight='bold')
-    axes[1].set_xlabel("Epoch", fontsize=11)
+    axes[1].set_xlabel("Epoch (1 - 40)", fontsize=11)
     axes[1].set_ylabel("Log(Training Loss)", fontsize=11)
     axes[1].grid(True, linestyle=':', alpha=0.6, which='both')
     axes[1].legend(loc='upper right', fontsize=8.5, framealpha=0.9)
@@ -369,15 +371,16 @@ def plot_model_comparisons(models_dir='trained_model', save_path='demo/benchmark
                 last_valid = p
             psnr_list.append(last_valid)
 
+        epochs_x = range(1, len(psnr_list) + 1)
         if "baseline_prelu" in name.lower():
-            axes[0].plot(psnr_list, label=f"★ {name} (Mốc gốc)", color='black', linestyle='--', linewidth=2.5)
+            axes[0].plot(epochs_x, psnr_list, label=f"★ {name} (Mốc gốc)", color='black', linestyle='--', linewidth=2.5)
         elif "eca" in name.lower():
-            axes[0].plot(psnr_list, label=f"✨ {name}", linewidth=2.0)
+            axes[0].plot(epochs_x, psnr_list, label=f"✨ {name}", linewidth=2.0)
         else:
-            axes[0].plot(psnr_list, label=name, linewidth=1.5, alpha=0.85)
+            axes[0].plot(epochs_x, psnr_list, label=name, linewidth=1.5, alpha=0.85)
 
     axes[0].set_title("1. Đường Cong Hội Tụ Val PSNR (40 Epochs)", fontsize=13, fontweight='bold')
-    axes[0].set_xlabel("Epoch", fontsize=11)
+    axes[0].set_xlabel("Epoch (1 - 40)", fontsize=11)
     axes[0].set_ylabel("PSNR (dB)", fontsize=11)
     axes[0].grid(True, linestyle=':', alpha=0.6)
     axes[0].legend(loc='lower right', fontsize=8.5, framealpha=0.9)
@@ -421,18 +424,36 @@ def plot_model_comparisons(models_dir='trained_model', save_path='demo/benchmark
     print(f"✅ Đã lưu biểu đồ so sánh mô hình vào: {save_path}")
     plt.show()
 
-    # Tạo bảng DataFrame tổng kết
+    # Tạo bảng DataFrame tổng kết chi tiết
     summary = []
-    for name, psnr_list in results.items():
-        max_p = max(psnr_list)
-        delta = max_p - baseline_best
-        summary.append({
-            "Tên Mô Hình": name,
-            "Best PSNR (dB)": f"{max_p:.2f}",
-            "Chênh lệch (Δ PSNR)": f"{delta:+.2f} dB" if name != "baseline_prelu" else "Mốc chuẩn (0.00)",
-            "Có ECA Attention": "✅ Có" if "eca" in name.lower() else "❌ Không",
-            "Epoch Đạt Đỉnh": int(np.argmax(psnr_list))
-        })
+    for folder in sorted(os.listdir(models_dir)):
+        json_file = os.path.join(models_dir, folder, "experiment_results.json")
+        if os.path.exists(json_file):
+            with open(json_file, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    val_psnrs = [item.get("val_psnr", 0.0) for item in data if item.get("val_psnr", 0.0) > 0]
+                    test_psnrs = [item.get("test_psnr", 0.0) for item in data if item.get("test_psnr", 0.0) > 0]
+                    train_losses = [item.get("train_loss", 0.0) for item in data]
+                    val_losses = [item.get("val_loss", 0.0) for item in data if item.get("val_loss", 0.0) > 0]
+                    
+                    max_val_p = max(val_psnrs) if val_psnrs else 0.0
+                    max_test_p = max(test_psnrs) if test_psnrs else 0.0
+                    min_train_l = min(train_losses) if train_losses else 0.0
+                    min_val_l = min(val_losses) if val_losses else 0.0
+                    best_ep = int(np.argmax([item.get("val_psnr", 0.0) for item in data]))
+                    delta = max_val_p - baseline_best
+
+                    summary.append({
+                        "Tên Mô Hình": folder,
+                        "Best Val PSNR": f"{max_val_p:.2f} dB",
+                        "Best Test PSNR": f"{max_test_p:.2f} dB" if max_test_p > 0 else "N/A",
+                        "Chênh lệch (Δ PSNR)": f"{delta:+.2f} dB" if folder != "baseline_prelu" else "Mốc (0.00)",
+                        "Min Train Loss": f"{min_train_l:.4e}",
+                        "Min Val Loss": f"{min_val_l:.4e}" if min_val_l > 0 else "N/A",
+                        "Có ECA": "✅ Có" if "eca" in folder.lower() else "❌ Không",
+                        "Epoch Đỉnh": best_ep + 1
+                    })
     df = pd.DataFrame(summary)
     return df
 
