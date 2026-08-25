@@ -131,8 +131,8 @@ def train(model, args, device):
         eta_seconds = remaining_epochs * avg_epoch_time
 
         if args.local_rank in [-1, 0]:
-            # ĐÁNH GIÁ ĐỊNH KỲ THEO EVAL_INTERVAL HOẶC EPOCH CUỐI CÙNG
-            should_eval = ((epoch + 1) % args.eval_interval == 0) or (epoch == args.epoch - 1)
+            # ĐÁNH GIÁ ĐỊNH KỲ: Luôn đánh giá ở Epoch đầu tiên (0), định kỳ theo eval_interval, hoặc Epoch cuối
+            should_eval = (epoch == 0) or ((epoch + 1) % args.eval_interval == 0) or (epoch == args.epoch - 1)
             val_psnr = best_psnr
             
             if should_eval:
