@@ -1,0 +1,242 @@
+[
+    {
+        "epoch": 0,
+        "train_loss": 0.0582677990982407,
+        "val_psnr": 0.0,
+        "epoch_time_seconds": 147.54132652282715
+    },
+    {
+        "epoch": 1,
+        "train_loss": 0.0450357802898476,
+        "val_psnr": 28.322923226339405,
+        "epoch_time_seconds": 114.7423050403595
+    },
+    {
+        "epoch": 2,
+        "train_loss": 0.03637488931907635,
+        "val_psnr": 28.322923226339405,
+        "epoch_time_seconds": 114.62820339202881
+    },
+    {
+        "epoch": 3,
+        "train_loss": 0.03388759922236204,
+        "val_psnr": 29.85261416476344,
+        "epoch_time_seconds": 113.48046731948853
+    },
+    {
+        "epoch": 4,
+        "train_loss": 0.029529290827677437,
+        "val_psnr": 29.85261416476344,
+        "epoch_time_seconds": 113.64456701278687
+    },
+    {
+        "epoch": 5,
+        "train_loss": 0.02662111522482806,
+        "val_psnr": 31.786245818173008,
+        "epoch_time_seconds": 113.40393018722534
+    },
+    {
+        "epoch": 6,
+        "train_loss": 0.0245250583381245,
+        "val_psnr": 31.786245818173008,
+        "epoch_time_seconds": 113.6565375328064
+    },
+    {
+        "epoch": 7,
+        "train_loss": 0.02283272549362951,
+        "val_psnr": 32.764378165557176,
+        "epoch_time_seconds": 112.76890468597412
+    },
+    {
+        "epoch": 8,
+        "train_loss": 0.02222515684062321,
+        "val_psnr": 32.764378165557176,
+        "epoch_time_seconds": 113.84420323371887
+    },
+    {
+        "epoch": 9,
+        "train_loss": 0.02153091608840776,
+        "val_psnr": 33.2556041778555,
+        "epoch_time_seconds": 113.64776635169983
+    },
+    {
+        "epoch": 10,
+        "train_loss": 0.020617056319392042,
+        "val_psnr": 33.2556041778555,
+        "epoch_time_seconds": 113.48691248893738
+    },
+    {
+        "epoch": 11,
+        "train_loss": 0.02031749155568449,
+        "val_psnr": 33.66118703275458,
+        "epoch_time_seconds": 113.79697561264038
+    },
+    {
+        "epoch": 12,
+        "train_loss": 0.01984372210296753,
+        "val_psnr": 33.66118703275458,
+        "epoch_time_seconds": 113.79757881164551
+    },
+    {
+        "epoch": 13,
+        "train_loss": 0.01971443354299194,
+        "val_psnr": 33.89032417967412,
+        "epoch_time_seconds": 112.85757660865784
+    },
+    {
+        "epoch": 14,
+        "train_loss": 0.01917013400234282,
+        "val_psnr": 33.89032417967412,
+        "epoch_time_seconds": 113.80122327804565
+    },
+    {
+        "epoch": 15,
+        "train_loss": 0.019293344192402927,
+        "val_psnr": 34.06476303427286,
+        "epoch_time_seconds": 113.29343676567078
+    },
+    {
+        "epoch": 16,
+        "train_loss": 0.0187060158503683,
+        "val_psnr": 34.06476303427286,
+        "epoch_time_seconds": 114.13389873504639
+    },
+    {
+        "epoch": 17,
+        "train_loss": 0.01893447817940461,
+        "val_psnr": 34.272027547396064,
+        "epoch_time_seconds": 113.58966398239136
+    },
+    {
+        "epoch": 18,
+        "train_loss": 0.01862948174392314,
+        "val_psnr": 34.272027547396064,
+        "epoch_time_seconds": 113.68401646614075
+    },
+    {
+        "epoch": 19,
+        "train_loss": 0.018279529051659138,
+        "val_psnr": 34.46443804423726,
+        "epoch_time_seconds": 114.01110291481018
+    },
+    {
+        "epoch": 20,
+        "train_loss": 0.018315873466628163,
+        "val_psnr": 34.46443804423726,
+        "epoch_time_seconds": 113.70089554786682
+    },
+    {
+        "epoch": 21,
+        "train_loss": 0.017882830796665267,
+        "val_psnr": 34.50902155926077,
+        "epoch_time_seconds": 113.4791431427002
+    },
+    {
+        "epoch": 22,
+        "train_loss": 0.018019013726887734,
+        "val_psnr": 34.50902155926077,
+        "epoch_time_seconds": 113.14859867095947
+    },
+    {
+        "epoch": 23,
+        "train_loss": 0.017932123504579067,
+        "val_psnr": 34.56262963288102,
+        "epoch_time_seconds": 112.91519379615784
+    },
+    {
+        "epoch": 24,
+        "train_loss": 0.01796705696094585,
+        "val_psnr": 34.56262963288102,
+        "epoch_time_seconds": 113.08043813705444
+    },
+    {
+        "epoch": 25,
+        "train_loss": 0.01784493907011653,
+        "val_psnr": 34.6007348845501,
+        "epoch_time_seconds": 113.82712936401367
+    },
+    {
+        "epoch": 26,
+        "train_loss": 0.01785051225635566,
+        "val_psnr": 34.6007348845501,
+        "epoch_time_seconds": 113.20459508895874
+    },
+    {
+        "epoch": 27,
+        "train_loss": 0.01755099367644442,
+        "val_psnr": 34.71991044005211,
+        "epoch_time_seconds": 112.673006772995
+    },
+    {
+        "epoch": 28,
+        "train_loss": 0.01751444861537924,
+        "val_psnr": 34.71991044005211,
+        "epoch_time_seconds": 113.2061116695404
+    },
+    {
+        "epoch": 29,
+        "train_loss": 0.017294181851474077,
+        "val_psnr": 34.792468231209774,
+        "epoch_time_seconds": 113.5459337234497
+    },
+    {
+        "epoch": 30,
+        "train_loss": 0.01735316180428,
+        "val_psnr": 34.792468231209774,
+        "epoch_time_seconds": 113.41856265068054
+    },
+    {
+        "epoch": 31,
+        "train_loss": 0.01744252190631079,
+        "val_psnr": 34.78875711940552,
+        "epoch_time_seconds": 113.4824595451355
+    },
+    {
+        "epoch": 32,
+        "train_loss": 0.017459691558523397,
+        "val_psnr": 34.792468231209774,
+        "epoch_time_seconds": 112.98737406730652
+    },
+    {
+        "epoch": 33,
+        "train_loss": 0.017352703564163102,
+        "val_psnr": 34.84079169402171,
+        "epoch_time_seconds": 112.90261220932007
+    },
+    {
+        "epoch": 34,
+        "train_loss": 0.01733070385005129,
+        "val_psnr": 34.84079169402171,
+        "epoch_time_seconds": 113.36453866958618
+    },
+    {
+        "epoch": 35,
+        "train_loss": 0.0170897855129289,
+        "val_psnr": 34.86230113165747,
+        "epoch_time_seconds": 113.32320213317871
+    },
+    {
+        "epoch": 36,
+        "train_loss": 0.017162921622787652,
+        "val_psnr": 34.86230113165747,
+        "epoch_time_seconds": 113.20162963867188
+    },
+    {
+        "epoch": 37,
+        "train_loss": 0.017300007107520575,
+        "val_psnr": 34.8785596920518,
+        "epoch_time_seconds": 113.75338006019592
+    },
+    {
+        "epoch": 38,
+        "train_loss": 0.017084440069371147,
+        "val_psnr": 34.8785596920518,
+        "epoch_time_seconds": 113.1292986869812
+    },
+    {
+        "epoch": 39,
+        "train_loss": 0.01710323814155632,
+        "val_psnr": 34.88290954322517,
+        "epoch_time_seconds": 112.75111222267151
+    }
+]
